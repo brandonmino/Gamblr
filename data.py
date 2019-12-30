@@ -4,10 +4,8 @@ import requests
 from bs4 import BeautifulSoup
 from selenium import webdriver
 from pprint import pprint
-
-url = "https://www.espn.com/nfl/schedule"
-page = requests.get(url)
-soup = BeautifulSoup(page.text, 'html.parser')
+from collections import OrderedDict 
+from requests_html import HTMLSession
 
 #First Number is done status
 #Name is for identifying links via espn
@@ -49,6 +47,10 @@ teams = {
     'WSH': [0, "washington-redskins", 32, [], []]
 }
 
+url = "https://www.espn.com/nfl/schedule"
+page = requests.get(url)
+soup = BeautifulSoup(page.text, 'html.parser')
+
 data = [t.split(' ').pop() for t in [element.text for element in soup.find_all('a', attrs={'class': 'team-name'})]]
 data = [tuple(data[i:i+2]) for i in range(0, len(data), 2)]
 #Tuple, first element is away team, second element in home team.
@@ -65,21 +67,42 @@ for tup in data:
             url = "https://www.espn.com/nfl/team/schedule/_/name/" + t.lower()
             page = requests.get(url)
             soup = BeautifulSoup(page.text, 'html.parser')
-            #Go through weeks and get game info for each team
+
+            #Go through weeks and get game info for each team (regular season only)
+            getids = re.findall("http://www.espn.com/nfl/game/_/gameId/.........", page.text)
+            games = list(OrderedDict.fromkeys(getids))[:16]
+
+            for game in games:
+                url = game
+                page = requests.get(url)
+                soup = BeautifulSoup(page.text, 'html.parser')
+
+                #Final score of game and currrent record after game
+                #Use [0] instead of [1] to get just record
+                records = [x.text.split(',')[1] for x in soup.find_all('div', attrs={'class': 'record'})]
+                score = [x.text for x in soup.find_all('div', attrs={'class': 'score-container'})]
+                #print(records, "\n")
+                #print(score, "\n")
+
+            #Currently experimenting with how to get team name without this since it is very long and inefficient
+            """
+            #Search for teams they have played against over the weeks
             for week in range(2,18):
+                #Search for teams that they played against
                 state = 0
                 for te in teams.keys():
                     temp_str = str(week)
-                    ser = soup.find('tr', attrs={'data-idx': temp_str})
-                    search = ser.find_all('a', attrs={'class': 'AnchorLink', 'href': '/nfl/team/_/name/' + te.lower() + '/' + teams[te][1]})
+                    ser1 = soup.find('tr', attrs={'data-idx': temp_str})
+                    search1 = ser1.find_all('a', attrs={'class': 'AnchorLink', 'href': '/nfl/team/_/name/' + te.lower() + '/' + teams[te][1]})
                     #Team has game this week
-                    if len(search) != 0:
+                    if len(search1) != 0:
                         teams[t][3].append([teams[te][2]])
                         state = 1
                         break 
                 #Team has bye week on this week
                 if state == 0:
                     teams[t][3].append([0])
+            """
             teams[t][0] = 1 
          
 pprint(teams)
